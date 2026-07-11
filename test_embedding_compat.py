@@ -4,9 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.embedding_compat.bailian_qwen_embed import build_bailian_payload, extract_embedding
-from tools.embedding_compat.io_utils import image_to_data_uri, load_manifest, make_result
-from tools.embedding_compat.local_qwen_embed import build_local_inputs
+from bailian_qwen_embed import build_bailian_payload, extract_embedding
+from io_utils import image_to_data_uri, load_manifest, make_result
+from local_qwen_embed import build_local_inputs
 
 
 class ManifestContractTests(unittest.TestCase):
