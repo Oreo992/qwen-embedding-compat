@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Search</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0f0f11; color: #e4e4e7; min-height: 100vh; }
+
+  .header { padding: 40px 24px 20px; text-align: center; }
+  .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .header p { font-size: 14px; color: #71717a; }
+
+  .search-box { max-width: 640px; margin: 0 auto 32px; padding: 0 24px; }
+  .search-wrap { display: flex; gap: 8px; }
+  .search-wrap input {
+    flex: 1; padding: 12px 16px; border-radius: 10px; border: 1px solid #27272a;
+    background: #18181b; color: #fff; font-size: 15px; outline: none; transition: border .2s;
+  }
+  .search-wrap input:focus { border-color: #6366f1; }
+  .search-wrap input::placeholder { color: #52525b; }
+  .search-wrap button {
+    padding: 12px 24px; border-radius: 10px; border: none; background: #6366f1;
+    color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .2s;
+    white-space: nowrap;
+  }
+  .search-wrap button:hover { background: #4f46e5; }
+  .search-wrap button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .status { text-align: center; padding: 8px; font-size: 13px; color: #71717a; }
+
+  .results { max-width: 1200px; margin: 0 auto; padding: 0 24px 60px; }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .card {
+    background: #18181b; border-radius: 12px; overflow: hidden;
+    border: 1px solid #27272a; transition: border-color .2s, transform .15s;
+  }
+  .card:hover { border-color: #6366f1; transform: translateY(-2px); }
+
+  .card img {
+    width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; background: #27272a;
+  }
+  .card-body { padding: 12px 14px; }
+  .card-title {
+    font-size: 13px; font-weight: 600; color: #e4e4e7; margin-bottom: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-meta { display: flex; justify-content: space-between; align-items: center; }
+  .card-time { font-size: 12px; color: #a1a1aa; }
+  .card-score {
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  }
+  .score-high { background: #064e3b; color: #34d399; }
+  .score-mid  { background: #422006; color: #fbbf24; }
+  .score-low  { background: #450a0a; color: #f87171; }
+
+  .empty { text-align: center; padding: 80px 24px; color: #52525b; font-size: 15px; }
+
+  .loading { display: none; text-align: center; padding: 40px; }
+  .loading.show { display: block; }
+  .spinner {
+    width: 32px; height: 32px; border: 3px solid #27272a; border-top-color: #6366f1;
+    border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hotkeys { max-width: 640px; margin: 12px auto 0; padding: 0 24px; }
+  .hotkeys-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .hotkey {
+    padding: 6px 14px; border-radius: 20px; background: #27272a; color: #a1a1aa;
+    font-size: 12px; cursor: pointer; transition: all .2s; border: 1px solid transparent;
+  }
+  .hotkey:hover { background: #3f3f46; color: #fff; border-color: #6366f1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Video Segment Search</h1>
+  <p id="statsText">Loading...</p>
+</div>
+
+<div class="search-box">
+  <div class="search-wrap">
+    <input type="text" id="queryInput" placeholder="输入文字描述搜索视频片段..." autofocus />
+    <button id="searchBtn" onclick="doSearch()">搜索</button>
+  </div>
+</div>
+
+<div class="hotkeys">
+  <div class="hotkeys-list">
+    <span class="hotkey" onclick="quickSearch(this)">美食</span>
+    <span class="hotkey" onclick="quickSearch(this)">建筑外观</span>
+    <span class="hotkey" onclick="quickSearch(this)">人物特写</span>
+    <span class="hotkey" onclick="quickSearch(this)">夜景</span>
+    <span class="hotkey" onclick="quickSearch(this)">户外运动</span>
+    <span class="hotkey" onclick="quickSearch(this)">科技产品</span>
+    <span class="hotkey" onclick="quickSearch(this)">自然风景</span>
+    <span class="hotkey" onclick="quickSearch(this)">动画</span>
+  </div>
+</div>
+
+<div class="status" id="statusBar"></div>
+
+<div class="loading" id="loadingEl">
+  <div class="spinner"></div>
+  <div style="color:#71717a; font-size:13px;">正在生成查询向量并检索...</div>
+</div>
+
+<div class="results" id="resultsEl">
+  <div class="empty" id="emptyEl">输入文字描述，搜索匹配的视频片段</div>
+</div>
+
+<script>
+const API = '';
+const input = document.getElementById('queryInput');
+const resultsEl = document.getElementById('resultsEl');
+const loadingEl = document.getElementById('loadingEl');
+const emptyEl = document.getElementById('emptyEl');
+const statusBar = document.getElementById('statusBar');
+const searchBtn = document.getElementById('searchBtn');
+
+input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+fetch(API + '/api/stats').then(r => r.json()).then(d => {
+  document.getElementById('statsText').textContent =
+    `${d.total_segments} segments indexed | Qwen3-VL-Embedding-8B + ChromaDB`;
+});
+
+function quickSearch(el) {
+  input.value = el.textContent;
+  doSearch();
+}
+
+async function doSearch() {
+  const q = input.value.trim();
+  if (!q) return;
+
+  searchBtn.disabled = true;
+  loadingEl.classList.add('show');
+  emptyEl.style.display = 'none';
+  resultsEl.innerHTML = '';
+  statusBar.textContent = '';
+
+  try {
+    const resp = await fetch(API + `/api/search?q=${encodeURIComponent(q)}&top_k=20`);
+    const data = await resp.json();
+
+    loadingEl.classList.remove('show');
+    searchBtn.disabled = false;
+
+    if (!data.results || data.results.length === 0) {
+      emptyEl.style.display = 'block';
+      emptyEl.textContent = '没有找到匹配的片段';
+      statusBar.textContent = `耗时 ${data.elapsed_ms}ms`;
+      return;
+    }
+
+    statusBar.textContent = `找到 ${data.results.length} 个匹配片段 | 耗时 ${data.elapsed_ms}ms`;
+
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+
+    data.results.forEach(r => {
+      const scoreClass = r.score >= 0.5 ? 'score-high' : r.score >= 0.3 ? 'score-mid' : 'score-low';
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <img src="${API}${r.thumbnail_url}" alt="frame" loading="lazy"
+             onerror="this.style.background='#27272a'" />
+        <div class="card-body">
+          <div class="card-title" title="${r.video_name}">${r.video_name}</div>
+          <div class="card-meta">
+            <span class="card-time">${formatTime(r.start_time)} - ${formatTime(r.end_time)}</span>
+            <span class="card-score ${scoreClass}">${(r.score * 100).toFixed(1)}%</span>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    resultsEl.appendChild(grid);
+  } catch (e) {
+    loadingEl.classList.remove('show');
+    searchBtn.disabled = false;
+    statusBar.textContent = 'Error: ' + e.message;
+  }
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+</script>
+</body>
+</html>
